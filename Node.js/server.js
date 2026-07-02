@@ -7,35 +7,46 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// تحديد المجلد المسؤول عن ملفات الواجهة (HTML, CSS, JS)
 app.use(express.static(path.join(__dirname, 'public')));
 
-// إدارة اتصالات المستخدمين
 io.on('connection', (socket) => {
-    console.log('مستخدم جديد اتصل بالشات');
+    
+    socket.on('join room', (data) => {
+        // مغادرة الغرفة السابقة إن وجدت
+        if(socket.currentRoom) {
+            socket.leave(socket.currentRoom);
+            io.to(socket.currentRoom).emit('chat message', {
+                user: '🤖 النظام',
+                text: `${socket.username} انتقل إلى غرفة أخرى`
+            });
+        }
 
-    // استقبال الاسم المستعار وتخزينه في جلسة السوكت
-    socket.on('join', (username) => {
-        socket.username = username || 'مستخدم مجهول';
-        // إشعار الجميع بدخول مستخدم جديد
-        io.emit('chat message', {
+        // تسجيل البيانات الجديدة في الجلسة
+        socket.username = data.username;
+        socket.role = data.role;
+        socket.currentRoom = data.room;
+
+        // الدخول للغرفة الجديدة
+        socket.join(data.room);
+        
+        // إرسال الترحيب لأعضاء الغرفة الجديدة فقط
+        io.to(data.room).emit('chat message', {
             user: '🤖 النظام',
-            text: `${socket.username} انضم إلى الدردشة`
+            text: `${socket.username} (${socket.role}) انضم إلى غرفة ${data.room}`
         });
     });
 
-    // استقبال الرسائل وإعادة بثها لجميع المتواجدين
-    socket.on('chat message', (msg) => {
-        io.emit('chat message', {
+    socket.on('chat message', (data) => {
+        io.to(data.room).emit('chat message', {
             user: socket.username,
-            text: msg
+            role: socket.role,
+            text: data.text
         });
     });
 
-    // عند مغادرة المستخدم
     socket.on('disconnect', () => {
-        if(socket.username) {
-            io.emit('chat message', {
+        if(socket.username && socket.currentRoom) {
+            io.to(socket.currentRoom).emit('chat message', {
                 user: '🤖 النظام',
                 text: `${socket.username} غادر الدردشة`
             });
@@ -43,8 +54,7 @@ io.on('connection', (socket) => {
     });
 });
 
-// تشغيل السيرفر على البورت المحلي أو بورت الاستضافة
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`السيرفر يعمل بنجاح على الرابط: http://localhost:${PORT}`);
+    console.log(`Chat running on http://localhost:${PORT}`);
 });
