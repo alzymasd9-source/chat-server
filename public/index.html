@@ -3,59 +3,98 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Blend Chat - شات فوري مطور</title>
+    <title>Blend Chat - الإصدار المجاني المطور</title>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
         body { background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        #chat-container { width: 100%; max-width: 600px; height: 80vh; background: #fff; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); display: flex; flex-direction: column; overflow: hidden; }
-        #header { background: #075e54; color: white; padding: 15px; text-align: center; font-size: 1.2rem; font-weight: bold; }
+        #chat-container { width: 100%; max-width: 800px; height: 85vh; background: #fff; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); display: flex; overflow: hidden; }
+        #sidebar { width: 250px; background: #2c3e50; color: white; padding: 15px; display: flex; flex-direction: column; gap: 15px; }
+        .room-btn { background: #34495e; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; text-align: right; font-size: 1rem; }
+        .room-btn.active { background: #1abc9c; }
+        #main-chat { flex: 1; display: flex; flex-direction: column; }
+        #header { background: #075e54; color: white; padding: 15px; font-size: 1.2rem; font-weight: bold; display: flex; justify-content: space-between; }
         #messages { flex: 1; padding: 20px; overflow-y: auto; background: #efeae2; display: flex; flex-direction: column; gap: 10px; }
-        .message { padding: 10px 15px; border-radius: 8px; max-width: 75%; width: fit-content; word-wrap: break-word; }
-        .message.system { background: #ffe0b2; align-self: center; font-size: 0.85rem; color: #5c3d11; }
+        .message { padding: 8px 12px; border-radius: 8px; max-width: 75%; width: fit-content; }
+        .message.system { background: #ffe0b2; align-self: center; font-size: 0.85rem; }
         .message.user { background: #fff; align-self: flex-start; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .badge { font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; margin-left: 5px; color: white; }
+        .badge.admin { background: #e74c3c; }
+        .badge.member { background: #3498db; }
         #form-container { padding: 15px; background: #f0f0f0; display: flex; gap: 10px; }
-        #input { flex: 1; padding: 12px; border: 1px solid #ccc; border-radius: 25px; outline: none; font-size: 1rem; }
-        #send-btn { background: #128c7e; color: white; border: none; padding: 0 20px; border-radius: 25px; cursor: pointer; font-size: 1rem; transition: 0.2s; }
-        #send-btn:hover { background: #075e54; }
+        #input { flex: 1; padding: 12px; border: 1px solid #ccc; border-radius: 25px; outline: none; }
+        #send-btn { background: #128c7e; color: white; border: none; padding: 0 20px; border-radius: 25px; cursor: pointer; }
     </style>
 </head>
 <body>
 
 <div id="chat-container">
-    <div id="header">Blend Chat - غرفة دردشة عامة</div>
-    <div id="messages"></div>
-    <div id="form-container">
-        <input id="input" autocomplete="off" placeholder="اكتب رسالتك هنا..." />
-        <button id="send-btn">إرسال</button>
+    <!-- القائمة الجانبية لإدارة الغرف والرتب محلياً -->
+    <div id="sidebar">
+        <h3>غرف الدردشة</h3>
+        <button class="room-btn active" onclick="switchRoom('العامة')">🏠 الغرفة العامة</button>
+        <button class="room-btn" onclick="switchRoom('التقنية')">💻 الغرفة التقنية</button>
+        <button class="room-btn" onclick="switchRoom('الألعاب')">🎮 غرفة الألعاب</button>
+        <hr>
+        <div id="user-info"></div>
+    </div>
+
+    <!-- الشات الرئيسي -->
+    <div id="main-chat">
+        <div id="header">
+            <span id="current-room">غرفة: العامة</span>
+            <span id="my-role">الرتبة: زائر</span>
+        </div>
+        <div id="messages"></div>
+        <div id="form-container">
+            <input id="input" autocomplete="off" placeholder="اكتب رسالتك هنا..." />
+            <button id="send-btn">إرسال</button>
+        </div>
     </div>
 </div>
 
-<!-- استدعاء مكتبة Socket.io من جهة العميل -->
 <script src="/socket.io/socket.io.js"></script>
 <script>
     const socket = io();
+    let currentRoom = 'العامة';
+    
+    // إعداد الهوية والرتبة مجاناً عبر نظام التخصيص عند الدخول
+    const username = prompt("أدخل اسمك المستعار:") || "مستخدم_" + Math.floor(Math.random() * 100);
+    const roleInput = prompt("اختر رتبتك للتجربة (admin أو member):") || "member";
+    const role = (roleInput === 'admin') ? 'سوبر أدمن' : 'عضو';
 
-    // طلب اسم المستخدم عند الدخول
-    const username = prompt("أدخل اسمك المستعار لبدء الدردشة:") || "مستخدم_" + Math.floor(Math.random() * 1000);
-    socket.emit('join', username);
+    document.getElementById('my-role').textContent = `الرتبة: ${role}`;
+    document.getElementById('user-info').innerHTML = `👤 ${username} <br> 🎖️ ${role}`;
 
-    const messages = document.getElementById('messages');
-    const input = document.getElementById('input');
-    const sendBtn = document.getElementById('send-btn');
+    // الانضمام الأولي
+    socket.emit('join room', { username, role, room: currentRoom });
 
-    // إرسال الرسالة عند الضغط على الزر أو Enter
+    function switchRoom(newRoom) {
+        if(newRoom === currentRoom) return;
+        document.getElementById('messages').innerHTML = '';
+        currentRoom = newRoom;
+        document.getElementById('current-room').textContent = `غرفة: ${newRoom}`;
+        
+        // تحديث أزرار النشاط
+        document.querySelectorAll('.room-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.textContent.includes(newRoom));
+        });
+
+        socket.emit('join room', { username, role, room: currentRoom });
+    }
+
     function sendMessage() {
+        const input = document.getElementById('input');
         if (input.value.trim() !== '') {
-            socket.emit('chat message', input.value);
+            socket.emit('chat message', { room: currentRoom, text: input.value });
             input.value = '';
         }
     }
 
-    sendBtn.addEventListener('click', sendMessage);
-    input.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+    document.getElementById('send-btn').addEventListener('click', sendMessage);
+    document.getElementById('input').addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
 
-    // استقبال الرسائل وعرضها في الواجهة
     socket.on('chat message', (data) => {
+        const messages = document.getElementById('messages');
         const item = document.createElement('div');
         item.classList.add('message');
         
@@ -64,12 +103,14 @@
             item.textContent = data.text;
         } else {
             item.classList.add('user');
-            item.innerHTML = `<strong>${data.user}:</strong> ${data.text}`;
+            const badgeClass = data.role === 'سوبر أدمن' ? 'admin' : 'member';
+            item.innerHTML = `<span class="badge ${badgeClass}">${data.role}</span> <strong>${data.user}:</strong> ${data.text}`;
         }
         
         messages.appendChild(item);
-        messages.scrollTop = messages.scrollHeight; // التمرير التلقائي لأسفل الشاشة
+        messages.scrollTop = messages.scrollHeight;
     });
 </script>
 </body>
-</html>
+    </html>
+    
